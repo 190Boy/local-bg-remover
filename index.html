@@ -7,79 +7,358 @@
 
     <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🪄</text></svg>">
 
-    <!-- 
-        重要：
+    <!--
         @imgly/background-removal 內部會 import "onnxruntime-web"。
-        瀏覽器原生 ES Module 不認得這種裸模組名稱，所以必須用 importmap 指定來源。
+        單一 HTML 沒有打包工具，所以用 importmap 告訴瀏覽器去哪裡抓。
     -->
     <script type="importmap">
     {
         "imports": {
-            "onnxruntime-web": "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.21.0/dist/ort.all.bundle.min.mjs"
+            "onnxruntime-web": "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.21.0-dev.20250206-d981b153d3/dist/ort.all.bundle.min.mjs"
         }
     }
     </script>
 
-    <!-- 測試用 Tailwind CDN。正式上線時建議改成 Tailwind CLI 或 PostCSS 編譯。 -->
-    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft JhengHei", sans-serif;
+            background: #0f172a;
+            color: #ffffff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 24px;
+        }
+
+        .card {
+            width: min(920px, 100%);
+            background: #1e293b;
+            border: 1px solid #334155;
+            border-radius: 28px;
+            padding: 38px 40px 40px;
+            box-shadow: 0 24px 60px rgba(0, 0, 0, 0.35);
+        }
+
+        .title {
+            margin: 0 0 10px;
+            text-align: center;
+            font-size: clamp(32px, 5vw, 48px);
+            font-weight: 900;
+            letter-spacing: 0.04em;
+            background: linear-gradient(90deg, #60a5fa, #2dd4bf);
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+        }
+
+        .subtitle {
+            margin: 0;
+            text-align: center;
+            color: #cbd5e1;
+            line-height: 1.7;
+            font-size: 15px;
+        }
+
+        .warning {
+            color: #facc15;
+            font-weight: 700;
+        }
+
+        .preload-panel {
+            margin-top: 22px;
+            padding: 14px 16px;
+            border-radius: 16px;
+            background: rgba(15, 23, 42, 0.68);
+            border: 1px solid #334155;
+        }
+
+        .preload-row {
+            display: flex;
+            justify-content: space-between;
+            gap: 12px;
+            align-items: center;
+            margin-bottom: 10px;
+            color: #cbd5e1;
+            font-size: 13px;
+        }
+
+        .bar {
+            overflow: hidden;
+            height: 10px;
+            border-radius: 999px;
+            background: #0f172a;
+            border: 1px solid #334155;
+        }
+
+        .bar-inner {
+            height: 100%;
+            width: 0%;
+            background: linear-gradient(90deg, #2563eb, #2dd4bf);
+            transition: width 0.25s ease;
+        }
+
+        .bar-inner.indeterminate {
+            width: 38%;
+            animation: slide 1.3s ease-in-out infinite;
+        }
+
+        @keyframes slide {
+            0% { transform: translateX(-110%); }
+            100% { transform: translateX(270%); }
+        }
+
+        .upload-box {
+            margin-top: 28px;
+            border: 2px dashed #475569;
+            border-radius: 22px;
+            padding: 46px 28px;
+            text-align: center;
+            cursor: pointer;
+            transition: 0.2s ease;
+            background: rgba(15, 23, 42, 0.25);
+        }
+
+        .upload-box:hover,
+        .upload-box.dragover {
+            border-color: #3b82f6;
+            background: rgba(51, 65, 85, 0.7);
+        }
+
+        .upload-icon {
+            font-size: 56px;
+            margin-bottom: 14px;
+        }
+
+        .upload-main {
+            font-size: 20px;
+            margin-bottom: 8px;
+        }
+
+        .upload-note {
+            color: #94a3b8;
+            font-size: 14px;
+        }
+
+        input[type="file"] {
+            display: none;
+        }
+
+        .loading {
+            display: none;
+            text-align: center;
+            margin-top: 24px;
+        }
+
+        .spinner {
+            width: 36px;
+            height: 36px;
+            border: 3px solid #334155;
+            border-top-color: #3b82f6;
+            border-radius: 999px;
+            margin: 0 auto 14px;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .progress-main {
+            color: #60a5fa;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+            white-space: pre-line;
+            line-height: 1.6;
+            font-size: 14px;
+        }
+
+        .hint {
+            margin-top: 10px;
+            color: #94a3b8;
+            font-size: 13px;
+            line-height: 1.7;
+        }
+
+        .error {
+            display: none;
+            margin-top: 20px;
+            padding: 14px 16px;
+            border-radius: 14px;
+            background: rgba(127, 29, 29, 0.35);
+            border: 1px solid #b91c1c;
+            color: #fecaca;
+            font-size: 14px;
+            white-space: pre-line;
+            line-height: 1.7;
+        }
+
+        .result {
+            display: none;
+            margin-top: 30px;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 20px;
+        }
+
+        @media (max-width: 720px) {
+            .grid {
+                grid-template-columns: 1fr;
+            }
+
+            .card {
+                padding: 28px 22px 30px;
+            }
+        }
+
+        .label {
+            color: #64748b;
+            font-size: 12px;
+            letter-spacing: 0.12em;
+            margin-bottom: 10px;
+        }
+
+        .preview {
+            height: 260px;
+            border-radius: 12px;
+            border: 1px solid #334155;
+            background: #0f172a;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+
+        .checker {
+            background-color: #0f172a;
+            background-image:
+                linear-gradient(45deg, rgba(255,255,255,.08) 25%, transparent 25%),
+                linear-gradient(-45deg, rgba(255,255,255,.08) 25%, transparent 25%),
+                linear-gradient(45deg, transparent 75%, rgba(255,255,255,.08) 75%),
+                linear-gradient(-45deg, transparent 75%, rgba(255,255,255,.08) 75%);
+            background-size: 20px 20px;
+            background-position: 0 0, 0 10px, 10px -10px, -10px 0;
+        }
+
+        .preview img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+
+        .actions {
+            display: flex;
+            gap: 16px;
+            margin-top: 26px;
+        }
+
+        .btn {
+            border: 0;
+            cursor: pointer;
+            border-radius: 14px;
+            color: white;
+            font-size: 20px;
+            font-weight: 800;
+            padding: 17px 20px;
+            transition: 0.18s ease;
+        }
+
+        .btn-primary {
+            flex: 1;
+            background: #2563eb;
+        }
+
+        .btn-primary:hover {
+            background: #3b82f6;
+        }
+
+        .btn-secondary {
+            background: #334155;
+            padding-inline: 32px;
+        }
+
+        .btn-secondary:hover {
+            background: #475569;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+    </style>
 </head>
 
-<body class="bg-slate-900 text-white min-h-screen flex flex-col items-center justify-center p-6">
+<body>
+    <main class="card">
+        <h1 class="title">本機 AI 去背展示</h1>
+        <p class="subtitle">
+            圖片會在你的瀏覽器中處理，不會上傳至你的伺服器。<br>
+            <span class="warning">首次使用會下載 AI 模型與 WASM 資源，之後瀏覽器會快取。</span>
+        </p>
 
-    <div class="max-w-2xl w-full bg-slate-800 p-8 rounded-3xl shadow-2xl border border-slate-700">
-        <div class="text-center mb-8">
-            <h1 class="text-4xl font-extrabold mb-2 bg-gradient-to-r from-blue-400 to-emerald-400 bg-clip-text text-transparent">
-                本機 AI 去背展示
-            </h1>
-            <p class="text-slate-400 text-sm mt-2 leading-relaxed">
-                圖片會在你的瀏覽器中處理，不會上傳至你的伺服器。<br>
-                <span class="text-amber-400">首次使用需下載 AI 模型與 WASM 資源，請耐心等候。</span>
-            </p>
-        </div>
-
-        <div id="upload-box" class="relative border-2 border-dashed border-slate-600 rounded-2xl p-10 text-center hover:border-blue-500 transition-colors cursor-pointer group">
-            <input type="file" id="image-input" class="hidden" accept="image/*">
-            <div>
-                <div class="text-5xl mb-4">🖼️</div>
-                <p class="text-lg">點擊或拖曳圖片到這裡</p>
-                <p class="text-sm text-slate-500 mt-2">建議先用 5MB 以下圖片測試</p>
+        <section class="preload-panel" id="preload-panel">
+            <div class="preload-row">
+                <span id="preload-text">AI 模型預載準備中...</span>
+                <span id="preload-percent">0%</span>
             </div>
+            <div class="bar">
+                <div class="bar-inner indeterminate" id="preload-bar"></div>
+            </div>
+        </section>
+
+        <div id="upload-box" class="upload-box">
+            <input type="file" id="image-input" accept="image/*">
+            <div class="upload-icon">🖼️</div>
+            <div class="upload-main">點擊或拖曳圖片到這裡</div>
+            <div class="upload-note">建議先用 5MB 以下圖片測試；第一次執行可能需要 30 秒～2 分鐘。</div>
         </div>
 
-        <div id="loading" class="hidden mt-6 text-center">
-            <div class="inline-block animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500 mb-4"></div>
-            <p id="progress-text" class="text-blue-400 font-mono">準備中...</p>
-        </div>
+        <section id="loading" class="loading">
+            <div class="spinner"></div>
+            <div id="progress-text" class="progress-main">準備中...</div>
+            <div class="bar" style="margin-top: 14px;">
+                <div class="bar-inner indeterminate" id="process-bar"></div>
+            </div>
+            <div class="hint">
+                若百分比短暫不動，通常是瀏覽器正在初始化 WASM 或建立 AI 推論 Session，不一定是當掉。
+            </div>
+        </section>
 
-        <div id="error-box" class="hidden mt-6 p-4 rounded-xl bg-red-900/40 border border-red-700 text-red-200 text-sm whitespace-pre-line"></div>
+        <section id="error-box" class="error"></section>
 
-        <div id="result-container" class="hidden mt-8 space-y-6">
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <section id="result-container" class="result">
+            <div class="grid">
                 <div>
-                    <p class="text-xs text-slate-500 mb-2 uppercase tracking-widest">原始圖片</p>
-                    <img id="orig-preview" class="rounded-lg border border-slate-700 w-full object-contain h-48 bg-slate-900" alt="原始圖片預覽">
+                    <div class="label">原始圖片</div>
+                    <div class="preview">
+                        <img id="orig-preview" alt="原始圖片預覽">
+                    </div>
                 </div>
 
                 <div>
-                    <p class="text-xs text-slate-500 mb-2 uppercase tracking-widest">去背結果</p>
-                    <div class="rounded-lg border border-slate-700 w-full h-48 bg-[url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAMUlEQVQ4T2NkYGAQYcAP3uPBAp86gYFpSDeJlEwzGBgY0A3ZQCIsD0hzJ5EUC2Y8uOAAKI9NG96S7uAAAAAASUVORK5CYII=')]">
-                        <img id="result-preview" class="w-full h-full object-contain" alt="去背結果預覽">
+                    <div class="label">去背結果</div>
+                    <div class="preview checker">
+                        <img id="result-preview" alt="去背結果預覽">
                     </div>
                 </div>
             </div>
 
-            <div class="flex gap-4">
-                <button id="download-btn" class="flex-1 bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 rounded-xl transition shadow-lg">
-                    下載 PNG
-                </button>
-                <button id="reset-btn" class="px-6 py-3 bg-slate-700 hover:bg-slate-600 rounded-xl transition">
-                    重新上傳
-                </button>
+            <div class="actions">
+                <button id="download-btn" class="btn btn-primary">下載 PNG</button>
+                <button id="reset-btn" class="btn btn-secondary">重新上傳</button>
             </div>
-        </div>
-    </div>
+        </section>
+    </main>
 
     <script type="module">
+        const IMG_LY_URL = 'https://cdn.jsdelivr.net/npm/@imgly/background-removal@1.7.0/dist/index.mjs';
+
         const imageInput = document.getElementById('image-input');
         const uploadBox = document.getElementById('upload-box');
         const loading = document.getElementById('loading');
@@ -91,9 +370,25 @@
         const errorBox = document.getElementById('error-box');
         const resetBtn = document.getElementById('reset-btn');
 
+        const preloadText = document.getElementById('preload-text');
+        const preloadPercent = document.getElementById('preload-percent');
+        const preloadBar = document.getElementById('preload-bar');
+        const processBar = document.getElementById('process-bar');
+
         let resultUrl = null;
         let originalUrl = null;
         let isProcessing = false;
+        let statusTimer = null;
+        let elapsedSeconds = 0;
+        let lastProgressText = '';
+        let imglyModulePromise = null;
+        let preloadPromise = null;
+        let preloadDone = false;
+
+        // v3 同模型：明確指定 isnet_fp16，也就是套件預設模型。
+        const MODEL_NAME = 'isnet_fp16';
+
+        bootPreload();
 
         uploadBox.addEventListener('click', () => {
             if (!isProcessing) imageInput.click();
@@ -107,26 +402,81 @@
 
         uploadBox.addEventListener('dragover', (e) => {
             e.preventDefault();
-            uploadBox.classList.add('bg-slate-700', 'border-blue-500');
+            uploadBox.classList.add('dragover');
         });
 
         uploadBox.addEventListener('dragleave', (e) => {
             e.preventDefault();
-            uploadBox.classList.remove('bg-slate-700', 'border-blue-500');
+            uploadBox.classList.remove('dragover');
         });
 
         uploadBox.addEventListener('drop', (e) => {
             e.preventDefault();
-            uploadBox.classList.remove('bg-slate-700', 'border-blue-500');
+            uploadBox.classList.remove('dragover');
 
             if (!isProcessing && e.dataTransfer.files.length) {
                 handleFile(e.dataTransfer.files[0]);
             }
         });
 
-        resetBtn.addEventListener('click', () => {
-            resetUI();
-        });
+        resetBtn.addEventListener('click', resetUI);
+
+        async function bootPreload() {
+            try {
+                setBarIndeterminate(preloadBar, true);
+                preloadText.innerText = '載入 AI 模組中...';
+
+                const imglyModule = await loadImglyModule();
+
+                if (typeof imglyModule.preload !== 'function') {
+                    preloadText.innerText = '此版本不支援預載；選圖後會直接載入模型。';
+                    preloadPercent.innerText = '--';
+                    setBarIndeterminate(preloadBar, false);
+                    preloadBar.style.width = '0%';
+                    return;
+                }
+
+                const progressTracker = createProgressTracker({
+                    onText: (text) => {
+                        preloadText.innerText = text;
+                    },
+                    onPercent: (percent, isCertain) => {
+                        if (isCertain) {
+                            preloadPercent.innerText = percent + '%';
+                            setBarIndeterminate(preloadBar, false);
+                            preloadBar.style.width = percent + '%';
+                        } else {
+                            preloadPercent.innerText = '載入中';
+                            setBarIndeterminate(preloadBar, true);
+                        }
+                    }
+                });
+
+                preloadText.innerText = '正在預載 AI 模型...';
+
+                preloadPromise = imglyModule.preload({
+                    model: MODEL_NAME,
+                    device: 'cpu',
+                    debug: false,
+                    progress: progressTracker
+                });
+
+                await preloadPromise;
+
+                preloadDone = true;
+                preloadText.innerText = 'AI 模型已預載完成，現在上傳圖片會比較快。';
+                preloadPercent.innerText = '100%';
+                setBarIndeterminate(preloadBar, false);
+                preloadBar.style.width = '100%';
+
+            } catch (error) {
+                console.warn('模型預載失敗，仍可在選圖後重試載入：', error);
+                preloadText.innerText = '模型預載未完成，選圖後會重新嘗試載入。';
+                preloadPercent.innerText = '--';
+                setBarIndeterminate(preloadBar, false);
+                preloadBar.style.width = '0%';
+            }
+        }
 
         async function handleFile(file) {
             if (!file.type.startsWith('image/')) {
@@ -147,15 +497,14 @@
 
             isProcessing = true;
             uploadBox.classList.add('hidden');
-            loading.classList.remove('hidden');
-            resultContainer.classList.add('hidden');
-            progressText.innerText = '載入 AI 模組中...';
+            loading.style.display = 'block';
+            resultContainer.style.display = 'none';
+
+            setBarIndeterminate(processBar, true);
+            startStatusTimer('準備 AI 去背中');
 
             try {
-                const imglyModule = await import(
-                    'https://cdn.jsdelivr.net/npm/@imgly/background-removal@1.7.0/dist/index.mjs'
-                );
-
+                const imglyModule = await loadImglyModule();
                 console.log('IMG.LY module exports:', Object.keys(imglyModule));
 
                 const removeBackground =
@@ -170,27 +519,54 @@
                     );
                 }
 
-                const config = {
-                    // 不指定 publicPath，讓套件使用預設資料來源抓模型。
-                    progress: (key, current, total) => {
-                        if (typeof current === 'number' && typeof total === 'number' && total > 0) {
-                            const percent = Math.round((current / total) * 100);
-                            progressText.innerText = `下載模型資源：${percent}%`;
+                if (preloadPromise && !preloadDone) {
+                    lastProgressText = '等待 AI 模型預載完成...\n如果第一次使用，這一步可能需要一些時間。';
+                    progressText.innerText = lastProgressText;
+                    await preloadPromise.catch(() => {
+                        // 預載失敗時，不中斷流程，讓 removeBackground 自己再嘗試一次。
+                    });
+                }
+
+                const processProgressTracker = createProgressTracker({
+                    onText: (text) => {
+                        lastProgressText = text;
+                        progressText.innerText = text;
+                    },
+                    onPercent: (percent, isCertain) => {
+                        if (isCertain) {
+                            setBarIndeterminate(processBar, false);
+                            processBar.style.width = percent + '%';
                         } else {
-                            progressText.innerText = `處理中：${key || 'AI 模型'}`;
+                            setBarIndeterminate(processBar, true);
                         }
                     }
-                };
+                });
 
-                progressText.innerText = 'AI 去背處理中...';
+                lastProgressText = 'AI 去背處理中...\n模型載入後，實際推論階段通常不會回報百分比。';
+                progressText.innerText = lastProgressText;
 
-                const blob = await removeBackground(file, config);
+                const blob = await removeBackground(file, {
+                    model: MODEL_NAME,
+                    device: 'cpu',
+                    debug: false,
+                    output: {
+                        format: 'image/png',
+                        type: 'foreground'
+                    },
+                    progress: processProgressTracker
+                });
+
+                stopStatusTimer();
+
+                setBarIndeterminate(processBar, false);
+                processBar.style.width = '100%';
+                progressText.innerText = '完成！';
 
                 resultUrl = URL.createObjectURL(blob);
                 resultPreview.src = resultUrl;
 
-                loading.classList.add('hidden');
-                resultContainer.classList.remove('hidden');
+                loading.style.display = 'none';
+                resultContainer.style.display = 'block';
 
                 downloadBtn.onclick = () => {
                     const a = document.createElement('a');
@@ -202,46 +578,139 @@
                 };
 
             } catch (error) {
+                stopStatusTimer();
+
                 console.error('【捕捉到錯誤】:', error);
 
-                loading.classList.add('hidden');
+                loading.style.display = 'none';
                 uploadBox.classList.remove('hidden');
 
                 showError(
                     '去背失敗：' + (error.message || error) +
-                    '\n\n目前最常見原因：' +
-                    '\n1. onnxruntime-web 的 WASM 檔或模型檔被網路環境擋住。' +
-                    '\n2. 公司、學校或防毒軟體阻擋 jsdelivr / img.ly 相關資源。' +
-                    '\n3. 瀏覽器版本太舊。建議使用最新版 Chrome / Edge。' +
-                    '\n4. 圖片太大造成記憶體不足。' +
-                    '\n\n若還是失敗，請把 F12 Console 從「IMG.LY module exports:」之後的錯誤貼給我。'
+                    '\n\n排查方式：' +
+                    '\n1. F12 → Network，確認是否有 .onnx / .wasm 下載失敗或 Pending 很久。' +
+                    '\n2. 若公司、學校或防毒軟體阻擋 jsdelivr / staticimgly.com，會卡住或失敗。' +
+                    '\n3. 請用最新版 Chrome / Edge 測試。' +
+                    '\n4. 先用 1MB 以下小圖測試。'
                 );
             } finally {
                 isProcessing = false;
             }
         }
 
+        async function loadImglyModule() {
+            if (!imglyModulePromise) {
+                imglyModulePromise = import(IMG_LY_URL);
+            }
+
+            return imglyModulePromise;
+        }
+
+        function createProgressTracker({ onText, onPercent }) {
+            const resourceMap = new Map();
+
+            return (key, current, total) => {
+                console.log('下載進度:', { key, current, total });
+
+                const safeKey = key || '模型資源';
+
+                if (typeof current === 'number' && typeof total === 'number' && total > 0) {
+                    resourceMap.set(safeKey, {
+                        current: Math.max(0, current),
+                        total: Math.max(1, total)
+                    });
+
+                    let knownCurrent = 0;
+                    let knownTotal = 0;
+
+                    for (const item of resourceMap.values()) {
+                        knownCurrent += item.current;
+                        knownTotal += item.total;
+                    }
+
+                    const resourcePercent = Math.max(0, Math.min(100, Math.round((current / total) * 100)));
+                    const overallPercent = knownTotal > 0
+                        ? Math.max(0, Math.min(100, Math.round((knownCurrent / knownTotal) * 100)))
+                        : resourcePercent;
+
+                    onText(
+                        `正在下載 AI 模型資源：${overallPercent}%\n` +
+                        `目前檔案：${safeKey}\n` +
+                        `單檔進度：${resourcePercent}%`
+                    );
+
+                    onPercent(overallPercent, true);
+
+                } else {
+                    onText(
+                        `正在下載或初始化 AI 模型...\n` +
+                        `目前資源：${safeKey}\n` +
+                        `此階段可能無法取得精準百分比。`
+                    );
+
+                    onPercent(0, false);
+                }
+            };
+        }
+
+        function startStatusTimer(baseText) {
+            stopStatusTimer();
+            elapsedSeconds = 0;
+            lastProgressText = baseText + '...';
+            progressText.innerText = lastProgressText;
+
+            statusTimer = setInterval(() => {
+                elapsedSeconds += 1;
+
+                if (elapsedSeconds < 20) {
+                    progressText.innerText = `${lastProgressText}\n已執行 ${elapsedSeconds} 秒`;
+                } else {
+                    progressText.innerText =
+                        `${lastProgressText}\n已執行 ${elapsedSeconds} 秒\n` +
+                        `首次下載與初始化可能較久；如果超過 2 分鐘，請檢查 F12 → Network 的 .onnx / .wasm。`;
+                }
+            }, 1000);
+        }
+
+        function stopStatusTimer() {
+            if (statusTimer) {
+                clearInterval(statusTimer);
+                statusTimer = null;
+            }
+        }
+
+        function setBarIndeterminate(bar, enabled) {
+            if (enabled) {
+                bar.classList.add('indeterminate');
+                bar.style.width = '';
+            } else {
+                bar.classList.remove('indeterminate');
+            }
+        }
+
         function resetUI() {
+            stopStatusTimer();
             cleanupObjectUrls();
             imageInput.value = '';
             resultPreview.removeAttribute('src');
             origPreview.removeAttribute('src');
-            resultContainer.classList.add('hidden');
-            loading.classList.add('hidden');
+            resultContainer.style.display = 'none';
+            loading.style.display = 'none';
             uploadBox.classList.remove('hidden');
             clearError();
             progressText.innerText = '準備中...';
+            setBarIndeterminate(processBar, true);
             isProcessing = false;
         }
 
         function showError(message) {
             errorBox.innerText = message;
-            errorBox.classList.remove('hidden');
+            errorBox.style.display = 'block';
         }
 
         function clearError() {
             errorBox.innerText = '';
-            errorBox.classList.add('hidden');
+            errorBox.style.display = 'none';
         }
 
         function cleanupObjectUrls() {
