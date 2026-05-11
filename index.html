@@ -7,7 +7,7 @@
 
     <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🪄</text></svg>">
 
-    <!-- 測試階段可以用；正式上線再改成 Tailwind CLI 編譯 -->
+    <!-- 測試用 Tailwind CDN。正式上線時建議改成 Tailwind CLI 或 PostCSS 編譯。 -->
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
 
@@ -19,7 +19,7 @@
                 本機 AI 去背展示
             </h1>
             <p class="text-slate-400 text-sm mt-2 leading-relaxed">
-                圖片在您的瀏覽器中處理，不會上傳至伺服器。<br>
+                圖片會在你的瀏覽器中處理，不會上傳至你的伺服器。<br>
                 <span class="text-amber-400">首次使用需下載 AI 模型，請耐心等候。</span>
             </p>
         </div>
@@ -38,19 +38,19 @@
             <p id="progress-text" class="text-blue-400 font-mono">準備中...</p>
         </div>
 
-        <div id="error-box" class="hidden mt-6 p-4 rounded-xl bg-red-900/40 border border-red-700 text-red-200 text-sm"></div>
+        <div id="error-box" class="hidden mt-6 p-4 rounded-xl bg-red-900/40 border border-red-700 text-red-200 text-sm whitespace-pre-line"></div>
 
         <div id="result-container" class="hidden mt-8 space-y-6">
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                     <p class="text-xs text-slate-500 mb-2 uppercase tracking-widest">原始圖片</p>
-                    <img id="orig-preview" class="rounded-lg border border-slate-700 w-full object-contain h-48 bg-slate-900">
+                    <img id="orig-preview" class="rounded-lg border border-slate-700 w-full object-contain h-48 bg-slate-900" alt="原始圖片預覽">
                 </div>
 
                 <div>
                     <p class="text-xs text-slate-500 mb-2 uppercase tracking-widest">去背結果</p>
                     <div class="rounded-lg border border-slate-700 w-full h-48 bg-[url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAMUlEQVQ4T2NkYGAQYcAP3uPBAp86gYFpSDeJlEwzGBgY0A3ZQCIsD0hzJ5EUC2Y8uOAAKI9NG96S7uAAAAAASUVORK5CYII=')]">
-                        <img id="result-preview" class="w-full h-full object-contain">
+                        <img id="result-preview" class="w-full h-full object-contain" alt="去背結果預覽">
                     </div>
                 </div>
             </div>
@@ -80,9 +80,10 @@
 
         let resultUrl = null;
         let originalUrl = null;
+        let isProcessing = false;
 
         uploadBox.addEventListener('click', () => {
-            imageInput.click();
+            if (!isProcessing) imageInput.click();
         });
 
         imageInput.addEventListener('change', (e) => {
@@ -105,15 +106,22 @@
             e.preventDefault();
             uploadBox.classList.remove('bg-slate-700', 'border-blue-500');
 
-            if (e.dataTransfer.files.length) {
+            if (!isProcessing && e.dataTransfer.files.length) {
                 handleFile(e.dataTransfer.files[0]);
             }
         });
 
         resetBtn.addEventListener('click', () => {
-            if (resultUrl) URL.revokeObjectURL(resultUrl);
-            if (originalUrl) URL.revokeObjectURL(originalUrl);
-            location.reload();
+            cleanupObjectUrls();
+            imageInput.value = '';
+            resultPreview.removeAttribute('src');
+            origPreview.removeAttribute('src');
+            resultContainer.classList.add('hidden');
+            loading.classList.add('hidden');
+            uploadBox.classList.remove('hidden');
+            clearError();
+            progressText.innerText = '準備中...';
+            isProcessing = false;
         });
 
         async function handleFile(file) {
@@ -122,11 +130,19 @@
                 return;
             }
 
-            clearError();
+            // 可自行調整大小限制。這裡先提醒但不阻擋。
+            if (file.size > 10 * 1024 * 1024) {
+                showError('提醒：這張圖片超過 10MB，可能會處理很久或失敗。建議先用較小圖片測試。');
+            } else {
+                clearError();
+            }
+
+            cleanupObjectUrls();
 
             originalUrl = URL.createObjectURL(file);
             origPreview.src = originalUrl;
 
+            isProcessing = true;
             uploadBox.classList.add('hidden');
             loading.classList.remove('hidden');
             resultContainer.classList.add('hidden');
@@ -134,24 +150,24 @@
             progressText.innerText = '載入 AI 模組中...';
 
             try {
+                // 正確的 ESM 入口：dist/index.mjs
                 const imglyModule = await import(
-                    'https://cdn.jsdelivr.net/npm/@imgly/background-removal@1.7.0/dist/imgly-background-removal.esm.js'
+                    'https://cdn.jsdelivr.net/npm/@imgly/background-removal@1.7.0/dist/index.mjs'
                 );
 
-                const removeBackground = imglyModule.default || imglyModule.removeBackground;
+                const removeBackground = imglyModule.default;
 
                 if (typeof removeBackground !== 'function') {
-                    throw new Error('無法取得 removeBackground 函式，可能是 CDN 檔案路徑或套件版本變動。');
+                    throw new Error('無法取得 removeBackground 函式，可能是套件版本或 CDN 載入異常。');
                 }
 
                 const config = {
-                    publicPath: 'https://cdn.jsdelivr.net/npm/@imgly/background-removal@1.7.0/dist/',
                     progress: (key, current, total) => {
-                        if (total) {
+                        if (typeof current === 'number' && typeof total === 'number' && total > 0) {
                             const percent = Math.round((current / total) * 100);
                             progressText.innerText = `下載模型資源：${percent}%`;
                         } else {
-                            progressText.innerText = `處理中：${key}`;
+                            progressText.innerText = `處理中：${key || 'AI 模型'}`;
                         }
                     }
                 };
@@ -170,18 +186,27 @@
                     const a = document.createElement('a');
                     a.href = resultUrl;
                     a.download = `removed_bg_${Date.now()}.png`;
+                    document.body.appendChild(a);
                     a.click();
+                    document.body.removeChild(a);
                 };
 
             } catch (error) {
                 console.error('【捕捉到錯誤】:', error);
+
                 loading.classList.add('hidden');
                 uploadBox.classList.remove('hidden');
 
                 showError(
-                    '去背失敗：' + error.message +
-                    '\n\n建議：確認網路連線、使用最新版 Chrome / Edge，並先用較小圖片測試。'
+                    '去背失敗：' + (error.message || error) +
+                    '\n\n可能原因：' +
+                    '\n1. CDN 或模型檔案被網路環境擋住。' +
+                    '\n2. 瀏覽器版本太舊。建議使用最新版 Chrome / Edge。' +
+                    '\n3. 圖片太大，記憶體不足。' +
+                    '\n4. 公司或學校網路阻擋 jsdelivr / img.ly 相關資源。'
                 );
+            } finally {
+                isProcessing = false;
             }
         }
 
@@ -193,6 +218,18 @@
         function clearError() {
             errorBox.innerText = '';
             errorBox.classList.add('hidden');
+        }
+
+        function cleanupObjectUrls() {
+            if (resultUrl) {
+                URL.revokeObjectURL(resultUrl);
+                resultUrl = null;
+            }
+
+            if (originalUrl) {
+                URL.revokeObjectURL(originalUrl);
+                originalUrl = null;
+            }
         }
     </script>
 </body>
