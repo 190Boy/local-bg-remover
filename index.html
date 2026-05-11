@@ -53,7 +53,10 @@
         </div>
     </div>
 
-    <script>
+	<script type="module">
+        // 【終極修復】使用 esm.run 自動解析最新版本的正確檔案路徑！
+        import imglyRemoveBackground from "https://esm.run/@imgly/background-removal";
+
         const imageInput = document.getElementById('image-input');
         const uploadBox = document.getElementById('upload-box');
         const loading = document.getElementById('loading');
@@ -63,13 +66,11 @@
         const downloadBtn = document.getElementById('download-btn');
         const progressText = document.getElementById('progress-text');
 
-        // 點擊事件
         uploadBox.onclick = () => imageInput.click();
         imageInput.onchange = (e) => {
             if (e.target.files.length) handleFile(e.target.files[0]);
         };
 
-        // 拖曳事件
         uploadBox.addEventListener('dragover', (e) => {
             e.preventDefault();
             uploadBox.classList.add('border-blue-500', 'bg-slate-700');
@@ -84,7 +85,6 @@
             if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
         });
 
-        // 核心去背邏輯
         async function handleFile(file) {
             origPreview.src = URL.createObjectURL(file);
             uploadBox.classList.add('hidden');
@@ -92,19 +92,16 @@
             progressText.innerText = "載入 AI 模組中...";
 
             try {
-                // 【轉址修正】明確鎖定 @1.7.0 版本，徹底解決 CORS 被擋的問題
-                const imglyModule = await import("https://unpkg.com/@imgly/background-removal@1.7.0/dist/imgly-background-removal.esm.js");
-                const removeBackground = imglyModule.default;
-
                 const config = {
-                    // 【轉址修正】路徑也同步鎖定 @1.7.0
-                    publicPath: "https://unpkg.com/@imgly/background-removal@1.7.0/dist/",
+                    // 指定 AI 模型資源檔的標準下載位置
+                    publicPath: "https://cdn.jsdelivr.net/npm/@imgly/background-removal/dist/",
                     progress: (status, progress) => {
                         progressText.innerText = `狀態: ${status} - ${Math.round(progress * 100)}%`;
                     }
                 };
 
-                const blob = await removeBackground(file, config);
+                // 直接呼叫載入進來的函式
+                const blob = await imglyRemoveBackground(file, config);
                 
                 const url = URL.createObjectURL(blob);
                 resultPreview.src = url;
