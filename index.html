@@ -95,7 +95,6 @@
                     img.onload = () => {
                         let width = img.width;
                         let height = img.height;
-                        
                         if (width > maxSize || height > maxSize) {
                             if (width > height) {
                                 height = Math.round((height * maxSize) / width);
@@ -105,13 +104,11 @@
                                 height = maxSize;
                             }
                         }
-                        
                         const canvas = document.createElement('canvas');
                         canvas.width = width;
                         canvas.height = height;
                         const ctx = canvas.getContext('2d');
                         ctx.drawImage(img, 0, 0, width, height);
-                        
                         canvas.toBlob((blob) => {
                             resolve(new File([blob], file.name, { type: file.type }));
                         }, file.type);
@@ -132,7 +129,6 @@
                 const safeFile = await resizeImage(file, 2048);
 
                 const config = {
-                    // 【關鍵】模型下載路徑的版本，必須跟最上面 <script> 載入的版本 1.4.3 一模一樣！
                     publicPath: "https://unpkg.com/@imgly/background-removal@1.4.3/dist/",
                     progress: (key, current, total) => {
                         const percent = total ? Math.round((current / total) * 100) : 0;
@@ -141,8 +137,8 @@
                     }
                 };
 
-                // 因為是全域載入，可以直接呼叫這個內建好的函式
-                const blob = await imglyRemoveBackground(safeFile, config);
+                // 【最終修正】在 1.4.3 版本中，函式路徑是 imgly.backgroundRemoval
+                const blob = await imgly.backgroundRemoval(safeFile, config);
                 
                 const url = URL.createObjectURL(blob);
                 resultPreview.src = url;
@@ -157,9 +153,8 @@
                 };
 
             } catch (error) {
-                // 絕對不再幫你重新整理了！
-                console.error("【去背失敗，抓到錯誤了】:", error);
-                alert(`處理失敗！請按 F12 查看主控台詳細錯誤。`);
+                console.error("【捕捉到錯誤】:", error);
+                alert(`處理失敗！請按 F12 查看詳細訊息。`);
             }
         }
     </script>
