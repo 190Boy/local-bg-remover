@@ -1,61 +1,6 @@
-<!DOCTYPE html>
-<html lang="zh-TW">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>純本地端去背工具 - 免費無限次</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <!-- 引入 imgly 去背函式庫 -->
-    <script src="https://cdn.jsdelivr.net/npm/@imgly/background-removal@latest/dist/index.js"></script>
-</head>
-<body class="bg-slate-900 text-white min-h-screen flex flex-col items-center justify-center p-6">
+<script type="module">
+        import imglyRemoveBackground from "https://cdn.jsdelivr.net/npm/@imgly/background-removal@1.4.3/dist/imgly-background-removal.esm.js";
 
-    <div class="max-w-2xl w-full bg-slate-800 p-8 rounded-3xl shadow-2xl border border-slate-700">
-        <div class="text-center mb-8">
-            <h1 class="text-4xl font-extrabold mb-2 bg-gradient-to-r from-blue-400 to-emerald-400 bg-clip-text text-transparent">
-                無限量去背工具
-            </h1>
-            <p class="text-slate-400">本地端 AI 運算：隱私安全、完全免費、無次數限制</p>
-        </div>
-
-        <!-- 上傳與顯示區 -->
-        <div id="upload-box" class="relative border-2 border-dashed border-slate-600 rounded-2xl p-10 text-center hover:border-blue-500 transition-colors cursor-pointer group">
-            <input type="file" id="image-input" class="hidden" accept="image/*">
-            <div id="status-text">
-                <div class="text-5xl mb-4">🖼️</div>
-                <p class="text-lg">點擊或拖曳圖片到這裡</p>
-                <p class="text-sm text-slate-500 mt-2">首次執行會下載 AI 模型 (約 70MB)，請耐心候等</p>
-            </div>
-        </div>
-
-        <!-- 處理中的 Loading -->
-        <div id="loading" class="hidden mt-6 text-center">
-            <div class="inline-block animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500 mb-4"></div>
-            <p id="progress-text" class="text-blue-400 font-mono">AI 辨識中...</p>
-        </div>
-
-        <!-- 結果顯示區 -->
-        <div id="result-container" class="hidden mt-8 space-y-6">
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                    <p class="text-xs text-slate-500 mb-2 uppercase tracking-widest">原始圖片</p>
-                    <img id="orig-preview" class="rounded-lg border border-slate-700 w-full object-contain h-48 bg-slate-900">
-                </div>
-                <div>
-                    <p class="text-xs text-slate-500 mb-2 uppercase tracking-widest">去背結果</p>
-                    <div class="rounded-lg border border-slate-700 w-full h-48 bg-[url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAMUlEQVQ4T2NkYGAQYcAP3uPBAp86gYFpSDeJlEwzGBgY0A3ZQCIsD0hzJ5EUC2Y8uOAAKI9NG96S7uAAAAAASUVORK5CYII=')]">
-                        <img id="result-preview" class="w-full h-full object-contain">
-                    </div>
-                </div>
-            </div>
-            <div class="flex gap-4">
-                <button id="download-btn" class="flex-1 bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 rounded-xl transition shadow-lg">下載 PNG</button>
-                <button onclick="location.reload()" class="px-6 py-3 bg-slate-700 hover:bg-slate-600 rounded-xl transition">重新上傳</button>
-            </div>
-        </div>
-    </div>
-
-    <script>
         const imageInput = document.getElementById('image-input');
         const uploadBox = document.getElementById('upload-box');
         const loading = document.getElementById('loading');
@@ -64,37 +9,58 @@
         const origPreview = document.getElementById('orig-preview');
         const downloadBtn = document.getElementById('download-btn');
 
+        // ====== 1. 點擊上傳事件 ======
         uploadBox.onclick = () => imageInput.click();
 
-        imageInput.onchange = async (e) => {
-            const file = e.target.files[0];
-            if (!file) return;
+        imageInput.onchange = (e) => {
+            if (e.target.files.length) {
+                handleFile(e.target.files[0]);
+            }
+        };
 
-            // 顯示原始圖預覽
-            origPreview.src = URL.createObjectURL(file);
+        // ====== 2. 拖曳上傳事件 (修復瀏覽器直接開啟圖片的問題) ======
+        uploadBox.addEventListener('dragover', (e) => {
+            e.preventDefault(); // 阻止瀏覽器預設動作
+            uploadBox.classList.add('border-blue-500', 'bg-slate-700'); // 拖曳進入時給點變色回饋
+        });
+
+        uploadBox.addEventListener('dragleave', (e) => {
+            e.preventDefault();
+            uploadBox.classList.remove('border-blue-500', 'bg-slate-700'); // 拖曳離開時恢復原色
+        });
+
+        uploadBox.addEventListener('drop', (e) => {
+            e.preventDefault(); // 阻止瀏覽器預設動作
+            uploadBox.classList.remove('border-blue-500', 'bg-slate-700');
             
-            // 切換 UI 狀態
+            if (e.dataTransfer.files.length) {
+                handleFile(e.dataTransfer.files[0]); // 抓取拖曳進來的第一個檔案
+            }
+        });
+
+        // ====== 3. 核心處理邏輯 ======
+        async function handleFile(file) {
+            origPreview.src = URL.createObjectURL(file);
             uploadBox.classList.add('hidden');
             loading.classList.remove('hidden');
 
             try {
-                // 執行去背 (核心邏輯)
-                // config 可設定模型路徑、輸出的解析度等
+                // 強制指定 AI 模型的下載路徑為官方 CDN
                 const config = {
+                    publicPath: "https://cdn.jsdelivr.net/npm/@imgly/background-removal@1.4.3/dist/",
                     progress: (status, progress) => {
-                        document.getElementById('progress-text').innerText = `處理中: ${Math.round(progress * 100)}%`;
+                        document.getElementById('progress-text').innerText = `狀態: ${status} - ${Math.round(progress * 100)}%`;
                     }
                 };
 
+                // 執行去背
                 const blob = await imglyRemoveBackground(file, config);
                 
-                // 顯示結果
                 const url = URL.createObjectURL(blob);
                 resultPreview.src = url;
                 loading.classList.add('hidden');
                 resultContainer.classList.remove('hidden');
 
-                // 下載功能
                 downloadBtn.onclick = () => {
                     const a = document.createElement('a');
                     a.href = url;
@@ -103,11 +69,10 @@
                 };
 
             } catch (error) {
-                console.error(error);
-                alert("去背發生錯誤，請確保瀏覽器版本較新且有足夠記憶體。");
-                location.reload();
+                // 【修復】取消自動重新整理，並將錯誤印在主控台
+                console.error("去背詳細錯誤:", error);
+                alert(`去背失敗！請按 F12 查看主控台。\n錯誤訊息: ${error.message}`);
+                // location.reload(); 
             }
-        };
+        }
     </script>
-</body>
-</html>
