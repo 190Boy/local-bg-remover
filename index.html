@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>純本地端去背工具 - 免費無限次</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@imgly/background-removal@1.4.3/dist/index.js"></script>
 </head>
 <body class="bg-slate-900 text-white min-h-screen flex flex-col items-center justify-center p-6">
 
@@ -28,7 +27,7 @@
 
         <div id="loading" class="hidden mt-6 text-center">
             <div class="inline-block animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500 mb-4"></div>
-            <p id="progress-text" class="text-blue-400 font-mono">AI 辨識中...</p>
+            <p id="progress-text" class="text-blue-400 font-mono">載入 AI 模組中...</p>
         </div>
 
         <div id="result-container" class="hidden mt-8 space-y-6">
@@ -59,6 +58,7 @@
         const resultPreview = document.getElementById('result-preview');
         const origPreview = document.getElementById('orig-preview');
         const downloadBtn = document.getElementById('download-btn');
+        const progressText = document.getElementById('progress-text');
 
         // 點擊事件
         uploadBox.onclick = () => imageInput.click();
@@ -86,18 +86,22 @@
             origPreview.src = URL.createObjectURL(file);
             uploadBox.classList.add('hidden');
             loading.classList.remove('hidden');
+            progressText.innerText = "載入 AI 模組中...";
 
             try {
-                // 設定正確的 CDN 路徑，避免 GitHub Pages 找不到檔案
+                // 【關鍵修復】使用動態 import，確保網頁一開始不會白畫面，且一定抓得到函數
+                const imglyModule = await import("https://cdn.jsdelivr.net/npm/@imgly/background-removal@1.4.3/dist/imgly-background-removal.esm.js");
+                const removeBackground = imglyModule.default;
+
                 const config = {
                     publicPath: "https://cdn.jsdelivr.net/npm/@imgly/background-removal@1.4.3/dist/",
                     progress: (status, progress) => {
-                        document.getElementById('progress-text').innerText = `狀態: ${status} - ${Math.round(progress * 100)}%`;
+                        progressText.innerText = `狀態: ${status} - ${Math.round(progress * 100)}%`;
                     }
                 };
 
-                // 呼叫全域函數 (由上面 head 的 script 提供)
-                const blob = await imglyRemoveBackground(file, config);
+                // 呼叫去背
+                const blob = await removeBackground(file, config);
                 
                 const url = URL.createObjectURL(blob);
                 resultPreview.src = url;
