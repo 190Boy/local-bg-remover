@@ -4,6 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>純本地端去背工具 - 免費無限次</title>
+    
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🪄</text></svg>">
+    
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-slate-900 text-white min-h-screen flex flex-col items-center justify-center p-6">
@@ -60,11 +63,13 @@
         const downloadBtn = document.getElementById('download-btn');
         const progressText = document.getElementById('progress-text');
 
+        // 點擊事件
         uploadBox.onclick = () => imageInput.click();
         imageInput.onchange = (e) => {
             if (e.target.files.length) handleFile(e.target.files[0]);
         };
 
+        // 拖曳事件
         uploadBox.addEventListener('dragover', (e) => {
             e.preventDefault();
             uploadBox.classList.add('border-blue-500', 'bg-slate-700');
@@ -79,6 +84,7 @@
             if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
         });
 
+        // 核心去背邏輯
         async function handleFile(file) {
             origPreview.src = URL.createObjectURL(file);
             uploadBox.classList.add('hidden');
@@ -86,12 +92,13 @@
             progressText.innerText = "載入 AI 模組中...";
 
             try {
-                // 這裡已經換成 unpkg 來源，避開 jsdelivr 的 404 問題
-                const imglyModule = await import("https://unpkg.com/@imgly/background-removal/dist/imgly-background-removal.esm.js");
+                // 【轉址修正】明確鎖定 @1.7.0 版本，徹底解決 CORS 被擋的問題
+                const imglyModule = await import("https://unpkg.com/@imgly/background-removal@1.7.0/dist/imgly-background-removal.esm.js");
                 const removeBackground = imglyModule.default;
 
                 const config = {
-                    publicPath: "https://unpkg.com/@imgly/background-removal/dist/",
+                    // 【轉址修正】路徑也同步鎖定 @1.7.0
+                    publicPath: "https://unpkg.com/@imgly/background-removal@1.7.0/dist/",
                     progress: (status, progress) => {
                         progressText.innerText = `狀態: ${status} - ${Math.round(progress * 100)}%`;
                     }
