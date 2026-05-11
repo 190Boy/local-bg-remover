@@ -60,13 +60,11 @@
         const downloadBtn = document.getElementById('download-btn');
         const progressText = document.getElementById('progress-text');
 
-        // 點擊事件
         uploadBox.onclick = () => imageInput.click();
         imageInput.onchange = (e) => {
             if (e.target.files.length) handleFile(e.target.files[0]);
         };
 
-        // 拖曳事件
         uploadBox.addEventListener('dragover', (e) => {
             e.preventDefault();
             uploadBox.classList.add('border-blue-500', 'bg-slate-700');
@@ -81,7 +79,6 @@
             if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
         });
 
-        // 處理邏輯
         async function handleFile(file) {
             origPreview.src = URL.createObjectURL(file);
             uploadBox.classList.add('hidden');
@@ -89,18 +86,17 @@
             progressText.innerText = "載入 AI 模組中...";
 
             try {
-                // 【關鍵修復】使用動態 import，確保網頁一開始不會白畫面，且一定抓得到函數
-                const imglyModule = await import("https://cdn.jsdelivr.net/npm/@imgly/background-removal@1.4.3/dist/imgly-background-removal.esm.js");
+                // 這裡已經換成 unpkg 來源，避開 jsdelivr 的 404 問題
+                const imglyModule = await import("https://unpkg.com/@imgly/background-removal/dist/imgly-background-removal.esm.js");
                 const removeBackground = imglyModule.default;
 
                 const config = {
-                    publicPath: "https://cdn.jsdelivr.net/npm/@imgly/background-removal@1.4.3/dist/",
+                    publicPath: "https://unpkg.com/@imgly/background-removal/dist/",
                     progress: (status, progress) => {
                         progressText.innerText = `狀態: ${status} - ${Math.round(progress * 100)}%`;
                     }
                 };
 
-                // 呼叫去背
                 const blob = await removeBackground(file, config);
                 
                 const url = URL.createObjectURL(blob);
