@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>純本地端去背工具 - 免費無限次</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@imgly/background-removal@1.4.3/dist/index.js"></script>
 </head>
 <body class="bg-slate-900 text-white min-h-screen flex flex-col items-center justify-center p-6">
 
@@ -50,9 +51,7 @@
         </div>
     </div>
 
-    <script type="module">
-        import imglyRemoveBackground from "https://cdn.jsdelivr.net/npm/@imgly/background-removal@1.4.3/dist/imgly-background-removal.esm.js";
-
+    <script>
         const imageInput = document.getElementById('image-input');
         const uploadBox = document.getElementById('upload-box');
         const loading = document.getElementById('loading');
@@ -61,42 +60,35 @@
         const origPreview = document.getElementById('orig-preview');
         const downloadBtn = document.getElementById('download-btn');
 
-        // 點擊上傳
+        // 點擊事件
         uploadBox.onclick = () => imageInput.click();
-
         imageInput.onchange = (e) => {
-            if (e.target.files.length) {
-                handleFile(e.target.files[0]);
-            }
+            if (e.target.files.length) handleFile(e.target.files[0]);
         };
 
-        // 拖曳上傳
+        // 拖曳事件
         uploadBox.addEventListener('dragover', (e) => {
             e.preventDefault();
             uploadBox.classList.add('border-blue-500', 'bg-slate-700');
         });
-
         uploadBox.addEventListener('dragleave', (e) => {
             e.preventDefault();
             uploadBox.classList.remove('border-blue-500', 'bg-slate-700');
         });
-
         uploadBox.addEventListener('drop', (e) => {
             e.preventDefault();
             uploadBox.classList.remove('border-blue-500', 'bg-slate-700');
-            if (e.dataTransfer.files.length) {
-                handleFile(e.dataTransfer.files[0]);
-            }
+            if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
         });
 
-        // 核心處理邏輯
+        // 處理邏輯
         async function handleFile(file) {
             origPreview.src = URL.createObjectURL(file);
             uploadBox.classList.add('hidden');
             loading.classList.remove('hidden');
 
             try {
-                // 設定 CDN 路徑
+                // 設定正確的 CDN 路徑，避免 GitHub Pages 找不到檔案
                 const config = {
                     publicPath: "https://cdn.jsdelivr.net/npm/@imgly/background-removal@1.4.3/dist/",
                     progress: (status, progress) => {
@@ -104,7 +96,7 @@
                     }
                 };
 
-                // 執行去背
+                // 呼叫全域函數 (由上面 head 的 script 提供)
                 const blob = await imglyRemoveBackground(file, config);
                 
                 const url = URL.createObjectURL(blob);
@@ -120,7 +112,6 @@
                 };
 
             } catch (error) {
-                // 攔截錯誤並印出
                 console.error("去背詳細錯誤:", error);
                 alert(`去背失敗！請按 F12 查看主控台。\n錯誤訊息: ${error.message}`);
             }
