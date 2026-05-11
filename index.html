@@ -6,34 +6,33 @@
     <title>瀏覽器 AI 去背工具</title>
     <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🪄</text></svg>">
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@imgly/background-removal@1.4.3/dist/index.js"></script>
+    
+    <script src="https://cdn.jsdelivr.net/npm/@imgly/background-removal@1.4.3/dist/index.js" onerror="this.src='https://unpkg.com/@imgly/background-removal@1.4.3/dist/index.js'"></script>
 </head>
 <body class="bg-slate-900 text-white min-h-screen flex flex-col items-center justify-center p-6">
-    <div class="max-w-2xl w-full bg-slate-800 p-8 rounded-3xl shadow-2xl border border-slate-700">
-        <div class="text-center mb-8">
-            <h1 class="text-4xl font-extrabold mb-2 bg-gradient-to-r from-blue-400 to-emerald-400 bg-clip-text text-transparent">AI 去背 Demo</h1>
-            <p class="text-slate-400 text-sm">圖片在本機處理，不上傳伺服器。首次使用需下載模型。</p>
-        </div>
+    <div class="max-w-2xl w-full bg-slate-800 p-8 rounded-3xl shadow-2xl border border-slate-700 text-center">
+        <h1 class="text-4xl font-extrabold mb-2 bg-gradient-to-r from-blue-400 to-emerald-400 bg-clip-text text-transparent">AI 去背展示</h1>
+        <p class="text-slate-400 text-sm mb-8">圖片在本機處理，不傳伺服器。首次使用需下載模型。</p>
 
-        <div id="upload-box" class="border-2 border-dashed border-slate-600 rounded-2xl p-10 text-center hover:border-blue-500 cursor-pointer">
+        <div id="upload-box" class="border-2 border-dashed border-slate-600 rounded-2xl p-10 hover:border-blue-500 cursor-pointer transition-all">
             <input type="file" id="image-input" class="hidden" accept="image/*">
-            <p class="text-lg">點擊或拖曳圖片到這裡</p>
+            <p id="box-text" class="text-lg">點擊或拖曳圖片到這裡</p>
         </div>
 
-        <div id="loading" class="hidden mt-6 text-center">
+        <div id="loading" class="hidden mt-6">
             <div class="animate-spin rounded-full h-8 w-8 border-t-2 border-blue-500 mx-auto mb-4"></div>
-            <p id="progress-text" class="text-blue-400 font-mono">載入中...</p>
+            <p id="progress-text" class="text-blue-400 font-mono">準備中...</p>
         </div>
 
-        <div id="result-container" class="hidden mt-8 space-y-6 text-center">
+        <div id="result-container" class="hidden mt-8 space-y-6">
             <div class="grid grid-cols-2 gap-4">
                 <img id="orig-preview" class="rounded h-48 w-full object-contain bg-black">
                 <div class="rounded h-48 w-full bg-[url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAMUlEQVQ4T2NkYGAQYcAP3uPBAp86gYFpSDeJlEwzGBgY0A3ZQCIsD0hzJ5EUC2Y8uOAAKI9NG96S7uAAAAAASUVORK5CYII=')]">
                     <img id="result-preview" class="h-full w-full object-contain">
                 </div>
             </div>
-            <button id="download-btn" class="bg-blue-600 px-8 py-3 rounded-xl font-bold">下載 PNG</button>
-            <button onclick="location.reload()" class="block mx-auto text-slate-500 text-sm mt-4">重新上傳</button>
+            <button id="download-btn" class="bg-blue-600 px-8 py-3 rounded-xl font-bold w-full">下載 PNG</button>
+            <button onclick="location.reload()" class="text-slate-500 text-sm mt-4">重新上傳</button>
         </div>
     </div>
 
@@ -44,26 +43,42 @@
         const resultContainer = document.getElementById('result-container');
         const progressText = document.getElementById('progress-text');
 
+        // 點擊觸發
         uploadBox.onclick = () => imageInput.click();
-        imageInput.onchange = (e) => handleFile(e.target.files[0]);
+        imageInput.onchange = (e) => { if(e.target.files.length) handleFile(e.target.files[0]); };
+
+        // 修正後的拖曳功能
+        uploadBox.addEventListener('dragover', (e) => { e.preventDefault(); uploadBox.classList.add('bg-slate-700', 'border-blue-500'); });
+        uploadBox.addEventListener('dragleave', () => { uploadBox.classList.remove('bg-slate-700', 'border-blue-500'); });
+        uploadBox.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadBox.classList.remove('bg-slate-700', 'border-blue-500');
+            if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
+        });
 
         async function handleFile(file) {
-            if (!file) return;
             document.getElementById('orig-preview').src = URL.createObjectURL(file);
             uploadBox.classList.add('hidden');
             loading.classList.remove('hidden');
 
             try {
-                // 強制尋找 imgly 變數，不管他在 window 下還是在全域
-                const removeFn = (window.imgly && window.imgly.backgroundRemoval) || (window.backgroundRemoval);
-                
-                if (!removeFn) throw new Error("找不到去背組件，請確認網路是否正常下載 JS");
+                // 最強偵測法：掃描 window 下所有可能的名稱
+                let removeFn = null;
+                if (window.imgly && window.imgly.backgroundRemoval) {
+                    removeFn = window.imgly.backgroundRemoval;
+                } else if (window.backgroundRemoval) {
+                    removeFn = window.backgroundRemoval;
+                } else if (typeof imglyRemoveBackground !== 'undefined') {
+                    removeFn = imglyRemoveBackground;
+                }
+
+                if (!removeFn) throw new Error("組件載入中，請稍候再試一次，或檢查網路。");
 
                 const config = {
-                    publicPath: "https://cdn.jsdelivr.net/npm/@imgly/background-removal@1.4.3/dist/",
+                    publicPath: "https://unpkg.com/@imgly/background-removal@1.4.3/dist/",
                     progress: (key, current, total) => {
                         const percent = total ? Math.round((current / total) * 100) : 0;
-                        progressText.innerText = `下載模型資源: ${percent}%`;
+                        progressText.innerText = `下載模型: ${percent}%`;
                     }
                 };
 
@@ -76,12 +91,14 @@
                 document.getElementById('download-btn').onclick = () => {
                     const a = document.createElement('a');
                     a.href = url;
-                    a.download = "bg-removed.png";
+                    a.download = "no-bg.png";
                     a.click();
                 };
             } catch (error) {
                 console.error(error);
                 alert("錯誤: " + error.message);
+                uploadBox.classList.remove('hidden');
+                loading.classList.add('hidden');
             }
         }
     </script>
