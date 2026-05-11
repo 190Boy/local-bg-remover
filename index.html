@@ -3,111 +3,196 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>瀏覽器 AI 去背工具</title>
+    <title>瀏覽器本機 AI 去背工具</title>
+
     <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🪄</text></svg>">
+
+    <!-- 測試階段可以用；正式上線再改成 Tailwind CLI 編譯 -->
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body class="bg-slate-900 text-white min-h-screen flex flex-col items-center justify-center p-6 text-center">
+
+<body class="bg-slate-900 text-white min-h-screen flex flex-col items-center justify-center p-6">
+
     <div class="max-w-2xl w-full bg-slate-800 p-8 rounded-3xl shadow-2xl border border-slate-700">
-        <h1 class="text-4xl font-extrabold mb-2 bg-gradient-to-r from-blue-400 to-emerald-400 bg-clip-text text-transparent">AI 去背展示</h1>
-        <p class="text-slate-400 text-sm mb-8">圖片在本機處理，不上傳。首次使用需下載 70MB 模型。</p>
+        <div class="text-center mb-8">
+            <h1 class="text-4xl font-extrabold mb-2 bg-gradient-to-r from-blue-400 to-emerald-400 bg-clip-text text-transparent">
+                本機 AI 去背展示
+            </h1>
+            <p class="text-slate-400 text-sm mt-2 leading-relaxed">
+                圖片在您的瀏覽器中處理，不會上傳至伺服器。<br>
+                <span class="text-amber-400">首次使用需下載 AI 模型，請耐心等候。</span>
+            </p>
+        </div>
 
-        <div id="upload-box" class="border-2 border-dashed border-slate-600 rounded-2xl p-10 hover:border-blue-500 cursor-pointer transition-all">
+        <div id="upload-box" class="relative border-2 border-dashed border-slate-600 rounded-2xl p-10 text-center hover:border-blue-500 transition-colors cursor-pointer group">
             <input type="file" id="image-input" class="hidden" accept="image/*">
-            <p class="text-lg">點擊或拖曳圖片到這裡</p>
+            <div id="status-text">
+                <div class="text-5xl mb-4">🖼️</div>
+                <p class="text-lg">點擊或拖曳圖片到這裡</p>
+                <p class="text-sm text-slate-500 mt-2">建議先用 5MB 以下圖片測試</p>
+            </div>
         </div>
 
-        <div id="loading" class="hidden mt-6">
-            <div class="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500 mx-auto mb-4"></div>
-            <p id="progress-text" class="text-blue-400 font-mono">正在檢查組件...</p>
+        <div id="loading" class="hidden mt-6 text-center">
+            <div class="inline-block animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500 mb-4"></div>
+            <p id="progress-text" class="text-blue-400 font-mono">準備中...</p>
         </div>
+
+        <div id="error-box" class="hidden mt-6 p-4 rounded-xl bg-red-900/40 border border-red-700 text-red-200 text-sm"></div>
 
         <div id="result-container" class="hidden mt-8 space-y-6">
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <img id="orig-preview" class="rounded h-48 w-full object-contain bg-black border border-slate-700">
-                <div class="rounded h-48 w-full border border-slate-700 bg-[url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAMUlEQVQ4T2NkYGAQYcAP3uPBAp86gYFpSDeJlEwzGBgY0A3ZQCIsD0hzJ5EUC2Y8uOAAKI9NG96S7uAAAAAASUVORK5CYII=')]">
-                    <img id="result-preview" class="h-full w-full object-contain">
+                <div>
+                    <p class="text-xs text-slate-500 mb-2 uppercase tracking-widest">原始圖片</p>
+                    <img id="orig-preview" class="rounded-lg border border-slate-700 w-full object-contain h-48 bg-slate-900">
+                </div>
+
+                <div>
+                    <p class="text-xs text-slate-500 mb-2 uppercase tracking-widest">去背結果</p>
+                    <div class="rounded-lg border border-slate-700 w-full h-48 bg-[url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAMUlEQVQ4T2NkYGAQYcAP3uPBAp86gYFpSDeJlEwzGBgY0A3ZQCIsD0hzJ5EUC2Y8uOAAKI9NG96S7uAAAAAASUVORK5CYII=')]">
+                        <img id="result-preview" class="w-full h-full object-contain">
+                    </div>
                 </div>
             </div>
-            <button id="download-btn" class="bg-blue-600 hover:bg-blue-500 px-8 py-3 rounded-xl font-bold w-full transition shadow-lg">下載 PNG</button>
-            <button onclick="location.reload()" class="text-slate-500 text-sm mt-4 hover:text-white transition">重新上傳</button>
+
+            <div class="flex gap-4">
+                <button id="download-btn" class="flex-1 bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 rounded-xl transition shadow-lg">
+                    下載 PNG
+                </button>
+                <button id="reset-btn" class="px-6 py-3 bg-slate-700 hover:bg-slate-600 rounded-xl transition">
+                    重新上傳
+                </button>
+            </div>
         </div>
     </div>
 
-    <script>
+    <script type="module">
         const imageInput = document.getElementById('image-input');
         const uploadBox = document.getElementById('upload-box');
         const loading = document.getElementById('loading');
         const resultContainer = document.getElementById('result-container');
+        const resultPreview = document.getElementById('result-preview');
+        const origPreview = document.getElementById('orig-preview');
+        const downloadBtn = document.getElementById('download-btn');
         const progressText = document.getElementById('progress-text');
+        const errorBox = document.getElementById('error-box');
+        const resetBtn = document.getElementById('reset-btn');
 
-        // 拖曳修復：確保攔截預設行為
-        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(name => {
-            uploadBox.addEventListener(name, e => e.preventDefault());
+        let resultUrl = null;
+        let originalUrl = null;
+
+        uploadBox.addEventListener('click', () => {
+            imageInput.click();
         });
 
-        uploadBox.addEventListener('dragover', () => uploadBox.classList.add('bg-slate-700'));
-        uploadBox.addEventListener('dragleave', () => uploadBox.classList.remove('bg-slate-700'));
+        imageInput.addEventListener('change', (e) => {
+            if (e.target.files.length) {
+                handleFile(e.target.files[0]);
+            }
+        });
+
+        uploadBox.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadBox.classList.add('bg-slate-700', 'border-blue-500');
+        });
+
+        uploadBox.addEventListener('dragleave', (e) => {
+            e.preventDefault();
+            uploadBox.classList.remove('bg-slate-700', 'border-blue-500');
+        });
+
         uploadBox.addEventListener('drop', (e) => {
-            uploadBox.classList.remove('bg-slate-700');
-            if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
+            e.preventDefault();
+            uploadBox.classList.remove('bg-slate-700', 'border-blue-500');
+
+            if (e.dataTransfer.files.length) {
+                handleFile(e.dataTransfer.files[0]);
+            }
         });
 
-        uploadBox.onclick = () => imageInput.click();
-        imageInput.onchange = (e) => { if(e.target.files.length) handleFile(e.target.files[0]); };
-
-        // 核彈級加載法：手動注入 Script 並監聽完成
-        function loadScript(url) {
-            return new Promise((resolve, reject) => {
-                const script = document.createElement('script');
-                script.src = url;
-                script.onload = () => resolve();
-                script.onerror = () => reject();
-                document.head.appendChild(script);
-            });
-        }
+        resetBtn.addEventListener('click', () => {
+            if (resultUrl) URL.revokeObjectURL(resultUrl);
+            if (originalUrl) URL.revokeObjectURL(originalUrl);
+            location.reload();
+        });
 
         async function handleFile(file) {
-            document.getElementById('orig-preview').src = URL.createObjectURL(file);
+            if (!file.type.startsWith('image/')) {
+                showError('請上傳圖片檔案。');
+                return;
+            }
+
+            clearError();
+
+            originalUrl = URL.createObjectURL(file);
+            origPreview.src = originalUrl;
+
             uploadBox.classList.add('hidden');
             loading.classList.remove('hidden');
+            resultContainer.classList.add('hidden');
+
+            progressText.innerText = '載入 AI 模組中...';
 
             try {
-                // 1. 動態確認組件是否載入，沒載入就現在抓
-                if (!(window.imgly && window.imgly.backgroundRemoval)) {
-                    progressText.innerText = "正在連線至 CDN...";
-                    await loadScript("https://unpkg.com/@imgly/background-removal@1.4.3/dist/index.js");
+                const imglyModule = await import(
+                    'https://cdn.jsdelivr.net/npm/@imgly/background-removal@1.7.0/dist/imgly-background-removal.esm.js'
+                );
+
+                const removeBackground = imglyModule.default || imglyModule.removeBackground;
+
+                if (typeof removeBackground !== 'function') {
+                    throw new Error('無法取得 removeBackground 函式，可能是 CDN 檔案路徑或套件版本變動。');
                 }
 
-                // 2. 再次確認變數名稱
-                const removeFn = window.imgly && window.imgly.backgroundRemoval;
-                if (!removeFn) throw new Error("組件載入異常，請重新整理頁面。");
-
                 const config = {
-                    publicPath: "https://unpkg.com/@imgly/background-removal@1.4.3/dist/",
+                    publicPath: 'https://cdn.jsdelivr.net/npm/@imgly/background-removal@1.7.0/dist/',
                     progress: (key, current, total) => {
-                        const percent = total ? Math.round((current / total) * 100) : 0;
-                        progressText.innerText = `下載 AI 模型: ${percent}%`;
+                        if (total) {
+                            const percent = Math.round((current / total) * 100);
+                            progressText.innerText = `下載模型資源：${percent}%`;
+                        } else {
+                            progressText.innerText = `處理中：${key}`;
+                        }
                     }
                 };
 
-                // 3. 執行
-                const blob = await removeFn(file, config);
-                const url = URL.createObjectURL(blob);
-                document.getElementById('result-preview').src = url;
+                progressText.innerText = 'AI 去背處理中...';
+
+                const blob = await removeBackground(file, config);
+
+                resultUrl = URL.createObjectURL(blob);
+                resultPreview.src = resultUrl;
+
                 loading.classList.add('hidden');
                 resultContainer.classList.remove('hidden');
 
-                document.getElementById('download-btn').onclick = () => {
+                downloadBtn.onclick = () => {
                     const a = document.createElement('a');
-                    a.href = url; a.download = "no-bg.png"; a.click();
+                    a.href = resultUrl;
+                    a.download = `removed_bg_${Date.now()}.png`;
+                    a.click();
                 };
+
             } catch (error) {
-                console.error(error);
-                alert("錯誤: " + error.message);
-                uploadBox.classList.remove('hidden');
+                console.error('【捕捉到錯誤】:', error);
                 loading.classList.add('hidden');
+                uploadBox.classList.remove('hidden');
+
+                showError(
+                    '去背失敗：' + error.message +
+                    '\n\n建議：確認網路連線、使用最新版 Chrome / Edge，並先用較小圖片測試。'
+                );
             }
+        }
+
+        function showError(message) {
+            errorBox.innerText = message;
+            errorBox.classList.remove('hidden');
+        }
+
+        function clearError() {
+            errorBox.innerText = '';
+            errorBox.classList.add('hidden');
         }
     </script>
 </body>
