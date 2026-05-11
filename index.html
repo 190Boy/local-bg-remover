@@ -7,6 +7,19 @@
 
     <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🪄</text></svg>">
 
+    <!-- 
+        重要：
+        @imgly/background-removal 內部會 import "onnxruntime-web"。
+        瀏覽器原生 ES Module 不認得這種裸模組名稱，所以必須用 importmap 指定來源。
+    -->
+    <script type="importmap">
+    {
+        "imports": {
+            "onnxruntime-web": "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.21.0/dist/ort.all.bundle.min.mjs"
+        }
+    }
+    </script>
+
     <!-- 測試用 Tailwind CDN。正式上線時建議改成 Tailwind CLI 或 PostCSS 編譯。 -->
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
@@ -20,7 +33,7 @@
             </h1>
             <p class="text-slate-400 text-sm mt-2 leading-relaxed">
                 圖片會在你的瀏覽器中處理，不會上傳至你的伺服器。<br>
-                <span class="text-amber-400">首次使用需下載 AI 模型，請耐心等候。</span>
+                <span class="text-amber-400">首次使用需下載 AI 模型與 WASM 資源，請耐心等候。</span>
             </p>
         </div>
 
@@ -145,8 +158,6 @@
 
                 console.log('IMG.LY module exports:', Object.keys(imglyModule));
 
-                // @imgly/background-removal 的常見用法是 named export: removeBackground
-                // 這裡同時保留 default / backgroundRemoval 備援，避免不同版本匯出名稱差異。
                 const removeBackground =
                     imglyModule.removeBackground ||
                     imglyModule.default ||
@@ -160,6 +171,7 @@
                 }
 
                 const config = {
+                    // 不指定 publicPath，讓套件使用預設資料來源抓模型。
                     progress: (key, current, total) => {
                         if (typeof current === 'number' && typeof total === 'number' && total > 0) {
                             const percent = Math.round((current / total) * 100);
@@ -197,12 +209,12 @@
 
                 showError(
                     '去背失敗：' + (error.message || error) +
-                    '\n\n請打開 F12 Console，看「IMG.LY module exports:」後面顯示哪些名稱。' +
-                    '\n\n可能原因：' +
-                    '\n1. CDN 或模型檔案被網路環境擋住。' +
-                    '\n2. 瀏覽器版本太舊。建議使用最新版 Chrome / Edge。' +
-                    '\n3. 圖片太大，記憶體不足。' +
-                    '\n4. 公司或學校網路阻擋 jsdelivr / img.ly 相關資源。'
+                    '\n\n目前最常見原因：' +
+                    '\n1. onnxruntime-web 的 WASM 檔或模型檔被網路環境擋住。' +
+                    '\n2. 公司、學校或防毒軟體阻擋 jsdelivr / img.ly 相關資源。' +
+                    '\n3. 瀏覽器版本太舊。建議使用最新版 Chrome / Edge。' +
+                    '\n4. 圖片太大造成記憶體不足。' +
+                    '\n\n若還是失敗，請把 F12 Console 從「IMG.LY module exports:」之後的錯誤貼給我。'
                 );
             } finally {
                 isProcessing = false;
