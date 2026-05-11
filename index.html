@@ -26,7 +26,7 @@
 
         <div id="upload-box" class="relative border-2 border-dashed border-slate-600 rounded-2xl p-10 text-center hover:border-blue-500 transition-colors cursor-pointer group">
             <input type="file" id="image-input" class="hidden" accept="image/*">
-            <div id="status-text">
+            <div>
                 <div class="text-5xl mb-4">🖼️</div>
                 <p class="text-lg">點擊或拖曳圖片到這裡</p>
                 <p class="text-sm text-slate-500 mt-2">建議先用 5MB 以下圖片測試</p>
@@ -112,16 +112,7 @@
         });
 
         resetBtn.addEventListener('click', () => {
-            cleanupObjectUrls();
-            imageInput.value = '';
-            resultPreview.removeAttribute('src');
-            origPreview.removeAttribute('src');
-            resultContainer.classList.add('hidden');
-            loading.classList.add('hidden');
-            uploadBox.classList.remove('hidden');
-            clearError();
-            progressText.innerText = '準備中...';
-            isProcessing = false;
+            resetUI();
         });
 
         async function handleFile(file) {
@@ -130,7 +121,6 @@
                 return;
             }
 
-            // 可自行調整大小限制。這裡先提醒但不阻擋。
             if (file.size > 10 * 1024 * 1024) {
                 showError('提醒：這張圖片超過 10MB，可能會處理很久或失敗。建議先用較小圖片測試。');
             } else {
@@ -146,19 +136,27 @@
             uploadBox.classList.add('hidden');
             loading.classList.remove('hidden');
             resultContainer.classList.add('hidden');
-
             progressText.innerText = '載入 AI 模組中...';
 
             try {
-                // 正確的 ESM 入口：dist/index.mjs
                 const imglyModule = await import(
                     'https://cdn.jsdelivr.net/npm/@imgly/background-removal@1.7.0/dist/index.mjs'
                 );
 
-                const removeBackground = imglyModule.default;
+                console.log('IMG.LY module exports:', Object.keys(imglyModule));
+
+                // @imgly/background-removal 的常見用法是 named export: removeBackground
+                // 這裡同時保留 default / backgroundRemoval 備援，避免不同版本匯出名稱差異。
+                const removeBackground =
+                    imglyModule.removeBackground ||
+                    imglyModule.default ||
+                    imglyModule.backgroundRemoval;
 
                 if (typeof removeBackground !== 'function') {
-                    throw new Error('無法取得 removeBackground 函式，可能是套件版本或 CDN 載入異常。');
+                    throw new Error(
+                        '無法取得 removeBackground 函式。實際匯出名稱：' +
+                        Object.keys(imglyModule).join(', ')
+                    );
                 }
 
                 const config = {
@@ -199,6 +197,7 @@
 
                 showError(
                     '去背失敗：' + (error.message || error) +
+                    '\n\n請打開 F12 Console，看「IMG.LY module exports:」後面顯示哪些名稱。' +
                     '\n\n可能原因：' +
                     '\n1. CDN 或模型檔案被網路環境擋住。' +
                     '\n2. 瀏覽器版本太舊。建議使用最新版 Chrome / Edge。' +
@@ -208,6 +207,19 @@
             } finally {
                 isProcessing = false;
             }
+        }
+
+        function resetUI() {
+            cleanupObjectUrls();
+            imageInput.value = '';
+            resultPreview.removeAttribute('src');
+            origPreview.removeAttribute('src');
+            resultContainer.classList.add('hidden');
+            loading.classList.add('hidden');
+            uploadBox.classList.remove('hidden');
+            clearError();
+            progressText.innerText = '準備中...';
+            isProcessing = false;
         }
 
         function showError(message) {
