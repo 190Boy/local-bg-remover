@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>純本地端去背工具 - 免費無限次</title>
+    <title>瀏覽器本機 AI 去背工具</title>
     
     <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🪄</text></svg>">
     
@@ -14,9 +14,13 @@
     <div class="max-w-2xl w-full bg-slate-800 p-8 rounded-3xl shadow-2xl border border-slate-700">
         <div class="text-center mb-8">
             <h1 class="text-4xl font-extrabold mb-2 bg-gradient-to-r from-blue-400 to-emerald-400 bg-clip-text text-transparent">
-                無限量去背工具
+                本機 AI 去背展示 (Demo)
             </h1>
-            <p class="text-slate-400">本地端 AI 運算：隱私安全、完全免費、無次數限制</p>
+            <p class="text-slate-400 text-sm mt-2 leading-relaxed">
+                圖片在您的瀏覽器中處理，不會上傳至伺服器。<br>
+                <span class="text-amber-400">⚠️ 首次使用需下載約 70MB AI 模型。處理速度依裝置效能而定。</span><br>
+                <span class="text-xs text-slate-500">核心技術基於 @imgly/background-removal (AGPL-3.0 授權)</span>
+            </p>
         </div>
 
         <div id="upload-box" class="relative border-2 border-dashed border-slate-600 rounded-2xl p-10 text-center hover:border-blue-500 transition-colors cursor-pointer group">
@@ -24,13 +28,13 @@
             <div id="status-text">
                 <div class="text-5xl mb-4">🖼️</div>
                 <p class="text-lg">點擊或拖曳圖片到這裡</p>
-                <p class="text-sm text-slate-500 mt-2">首次執行會下載 AI 模型 (約 70MB)，請耐心等候</p>
+                <p class="text-sm text-slate-500 mt-2">建議圖片大小低於 5MB，超大圖片將自動縮放以防當機</p>
             </div>
         </div>
 
         <div id="loading" class="hidden mt-6 text-center">
             <div class="inline-block animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500 mb-4"></div>
-            <p id="progress-text" class="text-blue-400 font-mono">載入 AI 模組中...</p>
+            <p id="progress-text" class="text-blue-400 font-mono">準備載入 AI 模組...</p>
         </div>
 
         <div id="result-container" class="hidden mt-8 space-y-6">
@@ -54,8 +58,8 @@
     </div>
 
 	<script type="module">
-        // 【終極修復】使用 esm.run 自動解析最新版本的正確檔案路徑！
-        import imglyRemoveBackground from "https://esm.run/@imgly/background-removal";
+        // 【關鍵修復】加上大括號 {}，精準拿出名叫 removeBackground 的函式
+        import { removeBackground } from "https://esm.run/@imgly/background-removal";
 
         const imageInput = document.getElementById('image-input');
         const uploadBox = document.getElementById('upload-box');
@@ -85,23 +89,62 @@
             if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
         });
 
+        // 圖片縮放機制
+        function resizeImage(file, maxSize = 2000) {
+            return new Promise((resolve) => {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const img = new Image();
+                    img.onload = () => {
+                        let width = img.width;
+                        let height = img.height;
+                        
+                        if (width > maxSize || height > maxSize) {
+                            if (width > height) {
+                                height = Math.round((height * maxSize) / width);
+                                width = maxSize;
+                            } else {
+                                width = Math.round((width * maxSize) / height);
+                                height = maxSize;
+                            }
+                        }
+                        
+                        const canvas = document.createElement('canvas');
+                        canvas.width = width;
+                        canvas.height = height;
+                        const ctx = canvas.getContext('2d');
+                        ctx.drawImage(img, 0, 0, width, height);
+                        
+                        canvas.toBlob((blob) => {
+                            resolve(new File([blob], file.name, { type: file.type }));
+                        }, file.type);
+                    };
+                    img.src = e.target.result;
+                };
+                reader.readAsDataURL(file);
+            });
+        }
+
         async function handleFile(file) {
             origPreview.src = URL.createObjectURL(file);
             uploadBox.classList.add('hidden');
             loading.classList.remove('hidden');
-            progressText.innerText = "載入 AI 模組中...";
+            progressText.innerText = "正在優化圖片大小...";
 
             try {
+                const safeFile = await resizeImage(file, 2048);
+
                 const config = {
-                    // 指定 AI 模型資源檔的標準下載位置
                     publicPath: "https://cdn.jsdelivr.net/npm/@imgly/background-removal/dist/",
-                    progress: (status, progress) => {
-                        progressText.innerText = `狀態: ${status} - ${Math.round(progress * 100)}%`;
+                    progress: (key, current, total) => {
+                        const percent = total ? Math.round((current / total) * 100) : 0;
+                        const statusName = key.includes('fetch') ? '下載模型' : 'AI 運算';
+                        progressText.innerText = `${statusName}：${percent}%`;
                     }
                 };
 
-                // 直接呼叫載入進來的函式
-                const blob = await imglyRemoveBackground(file, config);
+                // 【關鍵修復】直接呼叫剛剛抽出來的 removeBackground
+                const blob = await removeBackground(safeFile, config);
                 
                 const url = URL.createObjectURL(blob);
                 resultPreview.src = url;
@@ -117,7 +160,8 @@
 
             } catch (error) {
                 console.error("去背詳細錯誤:", error);
-                alert(`去背失敗！請按 F12 查看主控台。\n錯誤訊息: ${error.message}`);
+                alert(`處理失敗！可能原因：\n1. 網路阻擋了模型下載\n2. 裝置記憶體不足\n請按 F12 查看主控台詳細錯誤。`);
+                location.reload();
             }
         }
     </script>
