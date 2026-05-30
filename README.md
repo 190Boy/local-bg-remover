@@ -8,7 +8,7 @@
 
 https://local-bg-remover.zooyoungboy.workers.dev/
 
-## 備份 / 原始碼網址
+## 備份 / 原始碼網址（已關閉）
 
 GitHub Pages 版：
 
